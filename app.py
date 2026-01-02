@@ -41,12 +41,9 @@ def check_password():
     else:
         return True
 
-# --- CACHED DATA LOADER (SPEED BOOST) ---
+# --- CACHED DATA LOADER ---
 @st.cache_data(show_spinner="Parsing chat history...")
 def load_and_parse_data(file_content):
-    """
-    Reads the file only ONCE. Subsequent runs use the cached memory.
-    """
     lines = file_content.decode("utf-8").split('\n')
     data = []
     # Regex: [05/07/2018, 21:00:50] Name: Message
@@ -82,22 +79,22 @@ if check_password():
     uploaded_file = st.sidebar.file_uploader("Upload Chat .txt", type="txt")
 
     if uploaded_file is not None:
-        # 1. LOAD DATA (Uses Cache)
+        # Load Data
         df = load_and_parse_data(uploaded_file.getvalue())
         
         if df.empty:
             st.error("Could not parse file. Check format.")
         else:
             # --- FILTERS ---
-            years_list = sorted(df['year'].unique(), reverse=True)
-            selected_years = st.sidebar.multiselect("📅 Select Years", years_list, default=years_list)
+            years = sorted(df['year'].unique(), reverse=True)
+            sel_years = st.sidebar.multiselect("📅 Select Years", years, default=years)
             
-            authors_list = sorted(df['author'].unique())
-            selected_authors = st.sidebar.multiselect("👥 Select People", authors_list, default=authors_list)
+            authors = sorted(df['author'].unique())
+            sel_authors = st.sidebar.multiselect("👥 Select People", authors, default=authors)
 
             # Apply Filters
-            filtered_df = df[df['year'].isin(selected_years)]
-            filtered_df = filtered_df[filtered_df['author'].isin(selected_authors)].copy()
+            filtered_df = df[df['year'].isin(sel_years)]
+            filtered_df = filtered_df[filtered_df['author'].isin(sel_authors)].copy()
 
             if filtered_df.empty:
                 st.warning("No messages match your filters!")
@@ -126,7 +123,7 @@ if check_password():
                     df_trend['month_year'] = df_trend['date'].dt.to_period('M').astype(str)
                     st.line_chart(df_trend.groupby('month_year').size())
 
-                # --- SEARCH ENGINE (IMPROVED) ---
+                # --- SEARCH ENGINE ---
                 st.divider()
                 st.subheader("🔎 The Detective")
                 
@@ -134,22 +131,56 @@ if check_password():
                 with s_col1:
                     query = st.text_input("Search for (e.g. 'Rangers')")
                 with s_col2:
-                    target_person = st.selectbox("Filter by Person", ["All"] + list(authors_list))
+                    target = st.selectbox("Filter by Person", ["All"] + list(authors))
                 
                 if query:
-                    # Case-insensitive search
                     mask = filtered_df['message'].str.contains(query, case=False, na=False)
-                    if target_person != "All":
-                        mask = mask & (filtered_df['author'] == target_person)
+                    if target != "All":
+                        mask = mask & (filtered_df['author'] == target)
                     
                     results = filtered_df[mask]
-                    
                     st.success(f"Found **{len(results)}** mentions of '{query}'!")
                     
                     if not results.empty:
-                        # NEW: Who said it most table?
+                        # Who said it most?
                         st.write(f"**Who mentions '{query}' the most?**")
                         
-                        # Create a clean frequency table
-                        freq_table = results['author'].value_counts().reset_index()
-                        freq
+                        # Shorter variable names to prevent copy errors
+                        counts = results['author'].value_counts()
+                        stats = counts.reset_index()
+                        stats.columns = ['Author', 'Mentions']
+                        
+                        r_c1, r_c2 = st.columns(2)
+                        with r_c1:
+                            st.dataframe(stats, hide_index=True, use_container_width=True)
+                        with r_c2:
+                            st.bar_chart(counts)
+                        
+                        with st.expander("View Messages"):
+                            view = results[['date', 'author', 'message']]
+                            st.dataframe(view.sort_values('date', ascending=False), use_container_width=True)
+
+                # --- WORD CLOUD ---
+                st.divider()
+                st.subheader("☁️ Word Cloud")
+                
+                stop_text = """
+                the and is to in it of for on that this my you are be have with was at so but if or not just like can do
+                we he she they them there then now go get got up out one about what when how know think see look good well
+                time day year people would could should really will going from don ll ve re wa ha m s t d
+                lol haha omitted image video sticker GIF edited mate man guy boy aye ye u ur ok okay yeah nah
+                shite fuck fucking wee cunt bit
+                """
+                custom_stopwords = set(stop_text.split())
+                all_text = " ".join(msg for msg in filtered_df['message'])
+                
+                if len(all_text) > 0:
+                    wc = WordCloud(width=1000, height=500, background_color='white', stopwords=custom_stopwords, min_word_length=3)
+                    wc.generate(all_text)
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    ax.imshow(wc, interpolation='bilinear')
+                    ax.axis("off")
+                    st.pyplot(fig)
+
+    else:
+        st.info("👈 Upload your file in the sidebar to start!")
