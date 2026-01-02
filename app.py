@@ -68,7 +68,7 @@ if check_password():
             match = re.match(pattern, line)
             if match:
                 date_str, time_str, author, message = match.groups()
-                # Skip system messages like "Messages to this group are now secured..."
+                # Skip system messages
                 if "omitted" in message or "security code changed" in message:
                     continue
                 dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M:%S")
@@ -80,7 +80,6 @@ if check_password():
             df['month_name'] = df['date'].dt.strftime('%B')
             
             # --- 🎁 2025 WRAPPED SECTION ---
-            # Filter for just 2025 data
             df_2025 = df[df['year'] == 2025]
             
             if not df_2025.empty:
@@ -89,7 +88,7 @@ if check_password():
                 
                 col1, col2, col3 = st.columns(3)
                 
-                # 1. The Champion (Most messages in 2025)
+                # 1. The Champion
                 top_sender = df_2025['author'].value_counts().idxmax()
                 msg_count = df_2025['author'].value_counts().max()
                 
@@ -126,7 +125,7 @@ if check_password():
             
             # EXTENDED Stopwords List
             custom_stopwords = {
-                # Common fillers
                 "the", "and", "is", "to", "in", "it", "of", "for", "on", "that", "this", "my", "you", "are", 
                 "be", "have", "with", "was", "at", "so", "but", "if", "or", "not", "just", "like", "can",
-                "do", "we", "he", "she", "they", "them", "there", "then
+                "do", "we", "he", "she", "they", "them", "there", "then", "now", "go", "get", "got", "up", "out",
+                "one", "about", "what", "when", "how", "know", "think", "see", "look", "good", "
