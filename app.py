@@ -5,10 +5,10 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 
-# --- PAGE CONFIGURATION ---
+# --- PAGE CONFIG ---
 st.set_page_config(page_title="WhatsApp Analyzer", layout="wide")
 
-# --- CUSTOM STYLING ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     .wrapped-box {
@@ -19,16 +19,10 @@ st.markdown("""
         text-align: center;
         margin-bottom: 20px;
     }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- PASSWORD LOGIC ---
+# --- PASSWORD CHECK ---
 def check_password():
     def password_entered():
         if st.session_state["password"] == st.secrets["password"]:
@@ -50,70 +44,71 @@ def check_password():
 if check_password():
     st.title("📊 WhatsApp Chat Insights")
     
-    # --- SIDEBAR: GLOBAL CONFIGURATION ---
+    # --- SIDEBAR START ---
     st.sidebar.header("⚙️ Configuration")
     uploaded_file = st.sidebar.file_uploader("Upload Chat .txt", type="txt")
 
     if uploaded_file is not None:
-        # --- DATA PROCESSING ---
+        # Read file
         content = uploaded_file.getvalue().decode("utf-8")
         lines = content.split('\n')
         
         data = []
+        # Regex Pattern
         pattern = r'^\[(\d{2}/\d{2}/\d{4}),\s+(\d{2}:\d{2}:\d{2})\]\s+(.*?):\s+(.*)$'
 
         for line in lines:
             line = line.strip()
             match = re.match(pattern, line)
             if match:
-                date_str, time_str, author, message = match.groups()
-                if "omitted" in message or "security code changed" in message:
+                date_s, time_s, auth, msg = match.groups()
+                
+                # Filter system messages
+                if "omitted" in msg:
                     continue
+                if "security code" in msg:
+                    continue
+                    
                 try:
-                    dt = datetime.strptime(f"{date_str} {time_str}", "%d/%m/%Y %H:%M:%S")
-                    data.append([dt, author, message])
+                    full_date = f"{date_s} {time_s}"
+                    dt = datetime.strptime(full_date, "%d/%m/%Y %H:%M:%S")
+                    data.append([dt, auth, msg])
                 except ValueError:
                     continue
         
         if data:
+            # Create DataFrame
             df = pd.DataFrame(data, columns=['date', 'author', 'message'])
             df['year'] = df['date'].dt.year
-            df['month_name'] = df['date'].dt.strftime('%B')
             
-            # --- SIDEBAR FILTERS ---
-            all_years = sorted(df['year'].unique(), reverse=True)
-            selected_years = st.sidebar.multiselect("📅 Select Years", all_years, default=all_years)
+            # --- FILTERS ---
+            # Get list of unique years
+            years_list = sorted(df['year'].unique(), reverse=True)
             
-            all_authors = sorted(df['author'].unique())
-            selected_authors = st.sidebar.multiselect("👥 Select People", all_authors, default=all_authors)
+            # Sidebar: Year Selector
+            selected_years = st.sidebar.multiselect(
+                "📅 Select Years", 
+                years_list, 
+                default=years_list
+            )
+            
+            # Sidebar: Author Selector
+            authors_list = sorted(df['author'].unique())
+            selected_authors = st.sidebar.multiselect(
+                "👥 Select People", 
+                authors_list, 
+                default=authors_list
+            )
 
-            # --- FILTER THE DATA ---
-            filtered_df = df[
-                (df['year'].isin(selected_years)) & 
-                (df['author'].isin(selected_authors))
-            ]
+            # Apply Filters
+            filtered_df = df[df['year'].isin(selected_years)]
+            filtered_df = filtered_df[filtered_df['author'].isin(selected_authors)]
 
             if filtered_df.empty:
                 st.warning("No messages match your filters!")
             else:
-                # --- MAIN DASHBOARD ---
-                
-                # 1. METRICS
+                # --- SNAPSHOT METRICS ---
                 st.markdown("### 📈 Snapshot")
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Messages", len(filtered_df))
-                c2.metric("Active Days", filtered_df['date'].dt.date.nunique())
                 
-                # Top Chatter in selection
-                if not filtered_df.empty:
-                    top_person = filtered_df['author'].value_counts().idxmax()
-                    c3.metric("Top Chatter", top_person)
-
-                st.divider()
-
-                # 2. CHARTS
-                col_left, col_right = st.columns(2)
-                
-                with col_left:
-                    st.subheader("🏆 Leaderboard")
-                    st.bar_chart(filtered_df['author'].value_counts().
+                # Metric 1
