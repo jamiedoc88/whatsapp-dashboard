@@ -80,4 +80,61 @@ if check_password():
             df['month_name'] = df['date'].dt.strftime('%B')
             
             # --- 🎁 2025 WRAPPED SECTION ---
-            df_2025 = df[df['year'] ==
+            # This is the line that was breaking before
+            df_2025 = df[df['year'] == 2025]
+            
+            if not df_2025.empty:
+                st.markdown('<div class="wrapped-box">', unsafe_allow_html=True)
+                st.markdown('<p class="wrapped-title">🎁 2025 WRAPPED</p>', unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns(3)
+                
+                # 1. The Champion
+                top_sender = df_2025['author'].value_counts().idxmax()
+                msg_count = df_2025['author'].value_counts().max()
+                
+                # 2. Busiest Month
+                busiest_month = df_2025['month_name'].value_counts().idxmax()
+                
+                with col1:
+                     st.metric("🏆 2025 Champion", top_sender, f"{msg_count} msgs")
+                with col2:
+                     st.metric("📅 Peak Month", busiest_month)
+                with col3:
+                     st.metric("💬 Total Messages", len(df_2025))
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.divider()
+
+            # --- REGULAR STATS ---
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                st.subheader("🏆 All-Time Chatterbox")
+                st.bar_chart(df['author'].value_counts().head(10))
+
+            with col_right:
+                st.subheader("📅 Activity Over Time")
+                df['date_only'] = df['date'].dt.date
+                st.line_chart(df.groupby('date_only').count()['message'])
+
+            # --- IMPROVED WORD CLOUD ---
+            st.divider()
+            st.subheader("☁️ The Vibe Check (Word Cloud)")
+            
+            text = " ".join(msg for msg in df['message'])
+            
+            # EXTENDED Stopwords List
+            custom_stopwords = {
+                "the", "and", "is", "to", "in", "it", "of", "for", "on", "that", 
+                "this", "my", "you", "are", "be", "have", "with", "was", "at", 
+                "so", "but", "if", "or", "not", "just", "like", "can", "do", 
+                "we", "he", "she", "they", "them", "there", "then", "now", "go", 
+                "get", "got", "up", "out", "one", "about", "what", "when", "how", 
+                "know", "think", "see", "look", "good", "well", "time", "day", 
+                "year", "people", "would", "could", "should", "really", "will", 
+                "going", "from",
+                # Contractions
+                "don", "ll", "ve", "re", "wa", "ha", "m", "s", "t", "d", 
+                # Chat terms
+                "lol", "haha", "omitted", "
